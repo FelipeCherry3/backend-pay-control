@@ -21,16 +21,22 @@ public class TransactionService {
     private TransactionRepository transactionRepository;
 
     @Autowired
-    private UserService userService;
-    @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private NotificationService notificationService;
 
     @Autowired
     private RestTemplate restTemplate;
 
-    public void createTransaction(TransactionDTO transaction) throws Exception {
-        User sender = this.userService.findUserById(transaction.senderID());
-        User receiver = this.userService.findUserById(transaction.receiverId());
+    public Transaction createTransaction(TransactionDTO transaction) throws Exception {
+        User sender = userRepository.findById(transaction.senderId())
+                .orElseThrow(() -> new Exception("Usuário remetente não encontrado"));
+
+        User receiver = userRepository.findById(transaction.receiverId())
+                .orElseThrow(() -> new Exception("Usuário destinatário não encontrado"));
 
         userService.validarTransaction(sender,transaction.value());
 
@@ -48,9 +54,14 @@ public class TransactionService {
         sender.setBalance(sender.getBalance().subtract(transaction.value()));
         receiver.setBalance(receiver.getBalance().add(transaction.value()));
 
-        transactionRepository.save(newTransaction);
-        userService.saveUser(sender);
-        userService.saveUser(receiver);
+        this.transactionRepository.save(newTransaction);
+        this.userService.saveUser(sender);
+        this.userService.saveUser(receiver);
+
+        this.notificationService.sendNotification(sender,"Transação realizada com sucesso");
+        this.notificationService.sendNotification(receiver,"Transação realizada com sucesso");
+
+        return newTransaction;
     }
     public Boolean authorizeTransaction(User sender, BigDecimal value){
         ResponseEntity<Map> authorizationResponse = restTemplate.getForEntity("https://run.mocky.io/v3/5794d450-d2e2-4412-8131-73d0293ac1cc", Map.class);
